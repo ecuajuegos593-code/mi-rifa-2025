@@ -11,10 +11,12 @@ if 'puntos_venta' not in st.session_state:
 
 if 'config_global' not in st.session_state:
     st.session_state.config_global = {
-        "nombre_rifa": "Gran Sorteo 2025",
-        "precio_ticket": 10.0,
-        "total_tickets": 100,
+        "nombre_rifa": "Gran Sorteo 2025"
+        "nombre_rifa": "Gran Sorteo 2026",
+        "precio_ticket": 0.50 - 20.00,
+        "total_tickets": 00 - 99,
         "estado_sorteo": "Abierto"
+        "estado_sorteo": "Cerrado"
     }
 
 # --- INTERFAZ ---
