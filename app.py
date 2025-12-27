@@ -4,145 +4,169 @@ from datetime import datetime, timedelta
 import uuid
 import random
 
-# --- CONFIGURACIÓN INICIAL ---
-st.set_page_config(page_title="Sistema de Rifas Profesional", layout="wide")
+# --- 1. CONFIGURACIÓN E INTERFAZ ---
+st.set_page_config(page_title="SISTEMA MASTER RIFA", layout="wide", page_icon="🎟️")
 
-# --- PERSISTENCIA DE DATOS (Simulada, conectar a Google Sheets para producción) ---
+# --- 2. PERSISTENCIA Y ESTADO (Base de Datos en Memoria) ---
+# Nota: Para persistencia permanente, conectar con Google Sheets
 if 'db_tickets' not in st.session_state:
     st.session_state.db_tickets = []
 if 'puntos_venta' not in st.session_state:
     st.session_state.puntos_venta = pd.DataFrame([
-        {"ID": "PV01", "Nombre": "Principal", "Clave": "123", "Capacidad": 1000, "Comision_V": 10, "Comision_P": 5, "Estado": "Activo"}
+        {"ID": "001", "Nombre": "Oficina Central", "Clave": "MASTER2025", "Capacidad": 5000, "Comision_V": 10.0, "Comision_P": 5.0, "Estado": "Activo"}
     ])
 if 'sorteos' not in st.session_state:
-    st.session_state.sorteos = ["Sorteo Mayor", "Rifa Rápida"]
+    st.session_state.sorteos = ["Sorteo Diario", "Sorteo Semanal"]
 
-# --- ESTILOS CSS ---
+# --- 3. ESTILOS VISUALES (CSS) ---
 st.markdown("""
     <style>
-    .ticket-box { border: 2px dashed #333; padding: 15px; border-radius: 10px; background: #fffce6; font-family: 'Courier New', Courier, monospace; }
-    .metric-card { background: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 5px solid #27ae60; }
+    .report-card { background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #0e1117; }
+    .ticket-box { border: 2px dashed #000; padding: 20px; background-color: #fff; color: #000; font-family: monospace; line-height: 1.2; }
+    .stButton>button { width: 100%; border-radius: 5px; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- NAVEGACIÓN ---
+# --- 4. BARRA LATERAL (CONTROL DE ACCESO) ---
 with st.sidebar:
-    st.title("🎟️ RIFAS CONTROL")
-    rol = st.selectbox("Acceso", ["Punto de Venta", "Súper Administrador"])
-    pwd = st.text_input("Contraseña", type="password")
+    st.image("https://cdn-icons-png.flaticon.com/512/3135/3135715.png", width=80)
+    st.title("🔐 Acceso")
+    rol = st.selectbox("Perfil:", ["Punto de Venta", "Súper Administrador"])
+    password_input = st.text_input("Contraseña de acceso:", type="password")
+    st.divider()
+    st.caption("v2.0 - Sistema Independiente")
 
-# --- LÓGICA SÚPER ADMINISTRADOR ---
-if rol == "Súper Administrador" and pwd == "MASTER2025":
-    st.header("🛡️ Panel de Súper Administración")
+# --- 5. LÓGICA DE SÚPER ADMINISTRADOR ---
+if rol == "Súper Administrador" and password_input == "MASTER2025":
+    st.title("🛡️ Panel Global de Súper Administrador")
     
-    t1, t2, t3, t4 = st.tabs(["📍 Puntos de Venta", "🎰 Sorteos", "💸 Comisiones y Capacidad", "📊 Reporte Maestro"])
+    t_admin = st.tabs(["📍 Puntos de Venta", "🎰 Config. Sorteos", "📊 Reporte Maestro"])
 
-    with t1:
-        st.subheader("Gestionar Vendedores")
-        # Editor dinámico para añadir, modificar o eliminar
-        new_pv = st.data_editor(st.session_state.puntos_venta, num_rows="dynamic", key="pv_editor")
-        if st.button("Actualizar Puntos de Venta"):
-            st.session_state.puntos_venta = new_pv
-            st.success("Cambios reflejados en todos los puntos de venta.")
+    with t_admin[0]:
+        st.subheader("Administrar Vendedores y Sucursales")
+        st.info("Aquí puedes añadir, bloquear o eliminar puntos de venta. Los cambios se reflejan al instante.")
+        # Editor de tabla dinámico
+        updated_pv = st.data_editor(st.session_state.puntos_venta, num_rows="dynamic", key="admin_pv_editor")
+        if st.button("💾 Guardar Cambios en Puntos de Venta"):
+            st.session_state.puntos_venta = updated_pv
+            st.success("Base de datos de vendedores actualizada.")
 
-    with t2:
-        st.subheader("Tipos de Sorteo")
-        nuevo_s = st.text_input("Añadir nuevo sorteo")
-        if st.button("Añadir Sorteo"):
-            st.session_state.sorteos.append(nuevo_s)
-            st.rerun()
-        st.write("Sorteos actuales:", st.session_state.sorteos)
+    with t_admin[1]:
+        st.subheader("Configuración de Sorteos y Capacidad")
+        col1, col2 = st.columns(2)
+        with col1:
+            nuevo_sorteo = st.text_input("Nombre de nuevo tipo de sorteo:")
+            if st.button("➕ Añadir Sorteo"):
+                if nuevo_sorteo:
+                    st.session_state.sorteos.append(nuevo_sorteo)
+                    st.rerun()
+        with col2:
+            st.write("Sorteos Activos:")
+            for s in st.session_state.sorteos:
+                st.code(s)
 
-    with t3:
-        st.subheader("Finanzas y Límites")
-        st.info("Ajuste de porcentajes de comisión y capacidad de tickets.")
-        st.write(st.session_state.puntos_venta[["Nombre", "Capacidad", "Comision_V", "Comision_P"]])
+    with t_admin[2]:
+        st.subheader("Dashboard Financiero Consolidado")
+        if st.session_state.db_tickets:
+            df_m = pd.DataFrame(st.session_state.db_tickets)
+            total_v = df_m['Valor'].sum()
+            total_p = df_m[df_m['Estado'] == 'Pagado']['Valor'].sum()
+            
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Ventas Totales", f"${total_v:,.2f}")
+            c2.metric("Premios Pagados", f"${total_p:,.2f}")
+            c3.metric("Tickets Activos", len(df_m))
+            st.dataframe(df_m)
+        else:
+            st.info("No hay ventas registradas aún.")
 
-    with t4:
-        st.subheader("Reporte Maestro de Utilidades")
-        df_ventas = pd.DataFrame(st.session_state.db_tickets)
-        if not df_ventas.empty:
-            st.write("Balance General:")
-            # Aquí irían cálculos de totales, premios pagados y ganancia neta
-            st.dataframe(df_ventas)
-
-# --- LÓGICA PUNTO DE VENTA ---
+# --- 6. LÓGICA DE PUNTO DE VENTA ---
 elif rol == "Punto de Venta":
-    pv_info = st.session_state.puntos_venta[st.session_state.puntos_venta['Clave'] == pwd]
+    # Buscar vendedor por contraseña
+    vendedor_match = st.session_state.puntos_venta[st.session_state.puntos_venta['Clave'] == password_input]
     
-    if not pv_info.empty:
-        vendedor = pv_info.iloc[0]
-        if vendedor['Estado'] == "Activo":
-            st.title(f"🏪 PV: {vendedor['Nombre']}")
+    if not vendedor_match.empty:
+        v_data = vendedor_match.iloc[0]
+        if v_data['Estado'] == "Activo":
+            st.title(f"🏪 Punto de Venta: {v_data['Nombre']}")
             
-            menu_v = st.tabs(["🎫 Vender Ticket", "📋 Reportes Diario/Mes", "⚠️ Caducados", "✅ Pagos"])
-            
-            with menu_v[0]:
-                st.subheader("Generar Nueva Venta")
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    num_escogido = st.number_input("Número", 0, 9999)
-                    sorteo = st.selectbox("Sorteo", st.session_state.sorteos)
-                with col_b:
-                    valor = st.number_input("Valor Compra $", 1.0)
-                    premio_estimado = valor * 50 # Ejemplo de suerte
+            t_pv = st.tabs(["🎫 Vender", "📈 Mis Reportes", "⌛ Caducados", "✅ Cobros"])
+
+            with t_pv[0]:
+                st.subheader("Generar Nuevo Ticket")
+                c_v1, c_v2 = st.columns(2)
+                with c_v1:
+                    n_ticket = st.number_input("Número de Suerte", 0, 99999, step=1)
+                    s_tipo = st.selectbox("Seleccione Sorteo", st.session_state.sorteos)
+                with c_v2:
+                    v_ticket = st.number_input("Valor de Compra ($)", 1.0, 1000.0, step=0.5)
+                    premio_p = v_ticket * 50 # Ejemplo de cálculo de premio
                 
-                if st.button("🎰 Generar e Imprimir Ticket"):
-                    # Crear Datos del Ticket
-                    id_unico = str(uuid.uuid4())[:8].upper()
-                    serie = f"SER-{random.randint(1000,9999)}"
-                    fecha_c = datetime.now()
-                    vencimiento = fecha_c + timedelta(days=7)
+                if st.button("🚀 Emitir Ticket"):
+                    # Generación de datos únicos
+                    id_ticket = str(uuid.uuid4())[:8].upper()
+                    n_serie = f"SN-{random.randint(10000, 99999)}"
+                    f_ahora = datetime.now()
+                    f_vence = f_ahora + timedelta(days=7)
                     
-                    nuevo_ticket = {
-                        "ID": id_unico, "Serie": serie, "Vendedor": vendedor['Nombre'],
-                        "Numero": num_escogido, "Valor": valor, "Premio": premio_estimado,
-                        "Fecha": fecha_c, "Vence": vencimiento, "Estado": "Pendiente",
-                        "Ganador": "No"
+                    ticket_info = {
+                        "ID": id_ticket, "Serie": n_serie, "Vendedor": v_data['Nombre'],
+                        "Numero": n_ticket, "Valor": v_ticket, "Premio": premio_p,
+                        "Fecha": f_ahora, "Vence": f_vence, "Estado": "Pendiente", "Sorteo": s_tipo
                     }
-                    st.session_state.db_tickets.append(nuevo_ticket)
+                    st.session_state.db_tickets.append(ticket_info)
                     
-                    # DISEÑO DEL TICKET PARA EL CLIENTE
+                    # REPRESENTACIÓN VISUAL DEL TICKET
                     st.markdown(f"""
                     <div class="ticket-box">
-                        <h3 style='text-align:center;'>TICKET DE RIFA</h3>
-                        <p><b>Serie:</b> {serie} | <b>ID:</b> {id_unico}</p>
-                        <p><b>Vendedor:</b> {vendedor['Nombre']}</p>
+                        <h2 style="text-align:center;">{v_data['Nombre']}</h2>
+                        <p style="text-align:center;">Ticket de Participación</p>
                         <hr>
-                        <h2 style='text-align:center;'>NÚMERO: {num_escogido}</h2>
-                        <p><b>Premio Potencial:</b> ${premio_estimado}</p>
-                        <p><b>Fecha:</b> {fecha_c.strftime('%d/%m/%Y %H:%M')}</p>
-                        <p><b>Caduca:</b> {vencimiento.strftime('%d/%m/%Y')}</p>
+                        <p><b>SORTEO:</b> {s_tipo}</p>
+                        <p><b>SERIE:</b> {n_serie} | <b>ID:</b> {id_ticket}</p>
+                        <h1 style="text-align:center; margin:10px 0;"># {n_ticket}</h1>
+                        <p><b>VALOR:</b> ${v_ticket:,.2f} | <b>PREMIO:</b> ${premio_p:,.2f}</p>
+                        <p><b>FECHA:</b> {f_ahora.strftime('%d/%m/%Y %H:%M')}</p>
+                        <p style="color:red;"><b>VENCE:</b> {f_vence.strftime('%d/%m/%Y')}</p>
+                        <p style="font-size:10px; text-align:center;">Conserve este ticket para cobrar su premio.</p>
                     </div>
                     """, unsafe_allow_html=True)
+                    st.balloons()
 
-            with menu_v[1]:
-                st.subheader("Reporte de Ventas")
-                df_v = pd.DataFrame(st.session_state.db_tickets)
-                if not df_v.empty:
-                    df_v_vendedor = df_v[df_v['Vendedor'] == vendedor['Nombre']]
-                    st.write("Resumen Mensual:")
+            with t_pv[1]:
+                st.subheader("Reporte de Ventas (Diario / Mes)")
+                if st.session_state.db_tickets:
+                    df_v = pd.DataFrame(st.session_state.db_tickets)
+                    df_v_vendedor = df_v[df_v['Vendedor'] == v_data['Nombre']]
                     st.dataframe(df_v_vendedor)
+                else:
+                    st.info("Aún no tienes ventas registradas.")
 
-            with menu_v[2]:
-                st.subheader("Tickets Caducados (Periodo 7 días)")
-                ahora = datetime.now()
-                df_c = pd.DataFrame(st.session_state.db_tickets)
-                if not df_c.empty:
-                    caducados = df_c[df_c['Vence'] < ahora]
-                    st.warning(f"Se han encontrado {len(caducados)} tickets fuera de fecha.")
-                    st.table(caducados[["Serie", "Numero", "Vence"]])
+            with t_pv[2]:
+                st.subheader("Reporte de Tickets Caducados")
+                st.info("Los tickets caducan automáticamente a los 7 días de la compra.")
+                if st.session_state.db_tickets:
+                    df_c = pd.DataFrame(st.session_state.db_tickets)
+                    caducados = df_c[(df_c['Vence'] < datetime.now()) & (df_c['Vendedor'] == v_data['Nombre'])]
+                    st.table(caducados[["Serie", "Numero", "Vence", "Estado"]])
 
-            with menu_v[3]:
-                st.subheader("Validar y Pagar Ticket")
-                code_scan = st.text_input("Ingrese Código Único del Ticket")
-                if st.button("Marcar como PAGADO"):
+            with t_pv[3]:
+                st.subheader("Módulo de Cobro y Validación")
+                id_search = st.text_input("Ingrese Código Único (ID) del Ticket:")
+                if st.button("🔍 Validar y Marcar como PAGADO"):
+                    encontrado = False
                     for t in st.session_state.db_tickets:
-                        if t['ID'] == code_scan:
+                        if t['ID'] == id_search:
                             t['Estado'] = "Pagado"
-                            st.success(f"Ticket {t['Serie']} actualizado a PAGADO.")
+                            st.success(f"Ticket {t['Serie']} marcado como PAGADO exitosamente.")
+                            encontrado = True
+                    if not encontrado:
+                        st.error("Código no encontrado o inválido.")
 
         else:
-            st.error("Punto de Venta BLOQUEADO. Contacte al administrador.")
+            st.error("⚠️ Acceso denegado: Este Punto de Venta ha sido BLOQUEADO por el Administrador.")
     else:
-        st.info("Esperando clave de vendedor...")
+        st.warning("Por favor, ingrese una clave de vendedor válida.")
+
+else:
+    st.info("👋 Bienvenid@. Seleccione su perfil y use su clave para ingresar.")
