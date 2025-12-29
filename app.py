@@ -179,26 +179,33 @@ import pandas as pd
 from datetime import datetime
 import uuid
 import streamlit.components.v1 as components
-
-# BOTÓN DE IMPRESIÓN REAL (Corregido)
+# BOTÓN DE IMPRESIÓN (Versión Segura sin f-string para evitar SyntaxError)
     if st.button("🔥 IMPRIMIR EN POS-80"):
-        # Usamos f-string pero con escape de llaves para CSS
-        js_code = f"""
+        # Extraemos los datos necesarios para inyectarlos limpiamente
+        js_numero = t['numero']
+        js_monto = t['monto']
+        js_fecha = t['fecha']
+        js_serie = t['id_serie']
+        js_pago = t['codigo_pago']
+
+        # Usamos una cadena normal y format() para evitar conflictos con llaves de JS/CSS
+        js_code = """
             <script>
             var printContents = window.parent.document.getElementById('ticket-area').innerHTML;
             var printWindow = window.open('', '', 'height=600,width=450');
             printWindow.document.write('<html><head><style>');
-            /* Doble llave para que Python no lo tome como variable */
-            printWindow.document.write('@page {{ size: 80mm auto; margin: 0; }}');
-            printWindow.document.write('body {{ width: 75mm; margin: 2mm; font-family: monospace; font-size: 12px; }}');
+            printWindow.document.write('@page { size: 80mm auto; margin: 0; }');
+            printWindow.document.write('body { width: 75mm; margin: 2mm; font-family: monospace; font-size: 12px; }');
             printWindow.document.write('</style></head><body>');
             printWindow.document.write(printContents);
             printWindow.document.write('</body></html>');
             printWindow.document.close();
-            setTimeout(function() {{
+            
+            // Pequeña pausa para asegurar que el contenido cargue antes de imprimir
+            setTimeout(function() {
                 printWindow.print();
                 printWindow.close();
-            }}, 500);
+            }, 500);
             </script>
         """
         components.html(js_code, height=0)
