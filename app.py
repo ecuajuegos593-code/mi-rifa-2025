@@ -180,116 +180,15 @@ from datetime import datetime
 import uuid
 import streamlit.components.v1 as components
 
-# --- CONFIGURACIÓN E INYECCIÓN DE SCRIPT DE IMPRESIÓN ---
-st.set_page_config(page_title="Sistema de Rifas POS", layout="wide")
-
-def inject_print_script():
-    # Este script detecta el div del ticket y abre el diálogo de impresión
-    components.html(
-        """
-        <script>
-        function printTicket() {
-            var printContents = window.parent.document.getElementById('ticket-area').innerHTML;
-            var originalContents = document.body.innerHTML;
-            var printWindow = window.open('', '', 'height=600,width=800');
-            printWindow.document.write('<html><head><title>Imprimir Ticket</title>');
-            printWindow.document.write('<style>@page { size: 80mm auto; margin: 0; } body { width: 80mm; font-family: monospace; }</style>');
-            printWindow.document.write('</head><body>');
-            printWindow.document.write(printContents);
-            printWindow.document.write('</body></html>');
-            printWindow.document.close();
-            printWindow.print();
-        }
-        window.parent.document.addEventListener('keydown', function(e) {
-            if (e.ctrlKey && e.key === 'p') {
-                printTicket();
-            }
-        });
-        </script>
-        """,
-        height=0,
-    )
-
-# --- DATOS DE PRUEBA (Simulación de Venta) ---
-if 'ultimo_ticket' not in st.session_state:
-    st.session_state.ultimo_ticket = {
-        'numero': '57',
-        'monto': '5.00',
-        'fecha': datetime.now().strftime("%d/%m/%Y"),
-        'hora': datetime.now().strftime("%H:%M"),
-        'id_serie': 'SN-88293',
-        'codigo_pago': 'XP-992'
-    }
-
-t = st.session_state.ultimo_ticket
-
-st.title("🖨️ Generador de Recibos POS-80")
-
-col1, col2 = st.columns([1, 1])
-
-with col1:
-    st.subheader("Datos del Ticket")
-    # Formulario para actualizar datos
-    num = st.text_input("Número Ganador", value=t['numero'])
-    monto = st.text_input("Monto $", value=t['monto'])
-    
-    if st.button("Actualizar y Generar"):
-        st.session_state.ultimo_ticket.update({'numero': num, 'monto': monto})
-        st.rerun()
-
-with col2:
-    st.subheader("Vista Previa")
-    
-    # CONTENEDOR DEL TICKET (Este es el que se imprime)
-    ticket_html = f"""
-    <div id="ticket-area" style="
-        width: 80mm; 
-        padding: 5px; 
-        background-color: white; 
-        color: black; 
-        border: 1px solid #ccc;
-        font-family: 'Courier New', Courier, monospace;
-    ">
-        <center>
-            <h2 style="margin: 5px 0;">RIFA LA FORTUNA</h2>
-            <p style="font-size: 12px; margin: 0;">RUC: 123456789-0</p>
-            <p style="font-size: 12px; margin: 0;">Calle Principal #123</p>
-            <hr style="border-top: 1px dashed black;">
-            <p style="margin: 0;">NUMERO ELEGIDO</p>
-            <h1 style="font-size: 50px; margin: 10px 0;">{t['numero']}</h1>
-            <p style="font-size: 18px; font-weight: bold;">VALOR: ${t['monto']}</p>
-            <hr style="border-top: 1px dashed black;">
-            <div style="text-align: left; font-size: 11px;">
-                <b>FECHA:</b> {t['fecha']} {t['hora']}<br>
-                <b>SERIE:</b> {t['id_serie']}<br>
-                <b>COD. PAGO:</b> {t['codigo_pago']}<br>
-                <b>ESTADO:</b> VIGENTE (7 DIAS)
-            </div>
-            <hr style="border-top: 1px dashed black;">
-            <table style="width: 100%; font-size: 10px; text-align: left;">
-                <tr><td><b>PREMIO 1:</b></td><td style="text-align:right;">$500.00</td></tr>
-                <tr><td><b>PREMIO 2:</b></td><td style="text-align:right;">$200.00</td></tr>
-                <tr><td><b>PREMIO 3:</b></td><td style="text-align:right;">$100.00</td></tr>
-            </table>
-            <hr style="border-top: 1px dashed black;">
-            <p style="font-size: 10px;">Conserve este ticket para cobrar.<br>¡Gracias por su compra!</p>
-            <div style="margin-top: 10px;">
-                <svg id="barcode"></svg>
-            </div>
-        </center>
-    </div>
-    """
-    
-    # Mostrar el ticket en pantalla
-    st.markdown(ticket_html, unsafe_allow_html=True)
-    
-    # BOTÓN DE IMPRESIÓN REAL
+# BOTÓN DE IMPRESIÓN REAL (Corregido)
     if st.button("🔥 IMPRIMIR EN POS-80"):
-        components.html(f"""
+        # Usamos f-string pero con escape de llaves para CSS
+        js_code = f"""
             <script>
             var printContents = window.parent.document.getElementById('ticket-area').innerHTML;
             var printWindow = window.open('', '', 'height=600,width=450');
             printWindow.document.write('<html><head><style>');
+            /* Doble llave para que Python no lo tome como variable */
             printWindow.document.write('@page {{ size: 80mm auto; margin: 0; }}');
             printWindow.document.write('body {{ width: 75mm; margin: 2mm; font-family: monospace; font-size: 12px; }}');
             printWindow.document.write('</style></head><body>');
@@ -299,4 +198,7 @@ with col2:
             setTimeout(function() {{
                 printWindow.print();
                 printWindow.close();
-            }},
+            }}, 500);
+            </script>
+        """
+        components.html(js_code, height=0)
