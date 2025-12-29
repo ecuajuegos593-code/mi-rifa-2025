@@ -5,118 +5,111 @@ import uuid
 import random
 import streamlit.components.v1 as components
 
-# --- CONFIGURACIÓN DE ESTILO INSPIRADO EN TU HTML ---
-st.set_page_config(page_title="APT3 - Sistema de Ventas", layout="wide")
+# --- CONFIGURACIÓN DE PÁGINA ---
+st.set_page_config(page_title="Sistema de Rifas Local", layout="wide")
 
+# --- ESTILOS INSPIRADOS EN TU DISEÑO ORIGINAL (APT3) ---
 st.markdown("""
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.13.0/css/all.min.css">
     <style>
         .main { background-color: #f4f6f9; }
-        .sidebar .sidebar-content { background-image: linear-gradient(#23272d,#23272d); color: white; }
-        .stButton>button { width: 100%; border-radius: 4px; height: 3em; font-size: 1.2em; background-color: #343a40; color: white; }
+        [data-testid="stSidebar"] { background-color: #23272d; color: white; }
+        .stButton>button { width: 100%; border-radius: 4px; height: 3.5em; font-size: 1.1em; background-color: #343a40; color: white; }
         .card { 
             background-color: white; padding: 20px; border-radius: 5px; 
             border: 1px solid #dee2e6; box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
             margin-bottom: 20px;
         }
-        .header-top { background-color: #ffffff; padding: 10px; border-bottom: 2px solid #3d464d; margin-bottom: 20px; }
-        .input-group-text { background-color: transparent; border: none; color: #6c757d; }
+        .header-top { background-color: #ffffff; padding: 15px; border-bottom: 2px solid #3d464d; margin-bottom: 20px; color: #333; }
+        .footer { text-align: right; padding: 20px; color: #888; font-size: 12px; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- INICIALIZACIÓN DE DATOS ---
+# --- INICIALIZACIÓN DE DATOS LOCALES (Solo en memoria del servidor/sesión) ---
 if 'db_ventas' not in st.session_state:
     st.session_state.db_ventas = pd.DataFrame(columns=[
         'id_serie', 'codigo_pago', 'numero', 'loteria', 'monto', 'fecha', 'hora', 'estado'
     ])
 
-# --- BARRA LATERAL (SIDEBAR DE TU HTML) ---
+if 'config_sorteo' not in st.session_state:
+    st.session_state.config_sorteo = {"nombre": "Sorteo Extraordinario", "rango": "00-99"}
+
+# --- LÓGICA DE NEGOCIO LOCAL ---
+def verificar_vigencia(fecha_str):
+    fecha_t = datetime.strptime(fecha_str, "%Y-%m-%d")
+    diferencia = datetime.now() - fecha_t
+    return "VIGENTE" if diferencia.days <= 7 else "CADUCADO"
+
+# --- MENÚ LATERAL ---
 with st.sidebar:
-    st.image("http://52.201.2.30/apt3/assets/img/logo3.png", width=150)
-    st.markdown("---")
-    menu = st.radio("MENÚ", ["🛒 Vender", "📊 Reportes", "🏆 Pago de Premios", "⏳ Caducados", "⚙️ Admin Reportes", "❌ Finalizar"])
-    st.markdown("---")
-    st.write("👤 Usuario: **OPTAYLORSD**")
+    st.markdown("### 🏆 SISTEMA LOCAL")
+    st.divider()
+    menu = st.radio("NAVEGACIÓN", 
+                   ["🛒 Vender", "📋 Reporte Ventas", "🏆 Pago de Premios", "⏳ Caducados", "⚙️ Configuración", "❌ Finalizar"])
+    st.divider()
+    st.info("Modo: Autónomo (Sin conexión externa)")
 
 if menu == "❌ Finalizar":
     st.session_state.clear()
     st.rerun()
 
-# --- HEADER SUPERIOR ---
-st.markdown("""<div class='header-top'><h3><i class="fa fa-shopping-cart"></i> Ventas / Listado</h3></div>""", unsafe_allow_html=True)
+# --- HEADER ---
+st.markdown(f"""<div class='header-top'><h2><i class="fa fa-shopping-cart"></i> {menu}</h2></div>""", unsafe_allow_html=True)
 
-# --- CUERPO PRINCIPAL ---
+# --- SECCIONES ---
+
 if menu == "🛒 Vender":
-    col_izq, col_der = st.columns([1, 1.5])
-
-    with col_izq:
+    col1, col2 = st.columns([1, 1.2])
+    
+    with col1:
         st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.subheader("Venta de Tickets")
+        num = st.text_input("🔢 Número (00-99)", placeholder="Ej: 05", max_chars=2)
+        monto = st.number_input("💵 Valor de Apuesta", min_value=1.0, step=1.0)
+        loteria = st.selectbox("🎰 Lotería / Sorteo", ["Diaria Mañana", "Diaria Tarde", "Sorteo Mayor"])
         
-        # Fecha (como tu input id="date")
-        fecha_venta = st.date_input("Fecha Sorteo", datetime.now())
-        
-        # Lotería (como tu select id="loterias")
-        loteria = st.selectbox("Selecciona la Lotería", ["Lotería Nacional", "Rifa Local", "Sorteo Extra"])
-        
-        # Número (como tu input id="number")
-        # Cambiado a 00-99 según tu solicitud inicial
-        num = st.text_input("🔢 Número (00-99)", placeholder="Ej: 57", max_chars=2)
-        
-        # Valor (como tu input id="value")
-        valor = st.number_input("💵 Valor ($)", min_value=0.0, step=1.0)
-        
-        if st.button("VENDER"):
-            if len(num) == 2 and valor > 0:
+        if st.button("CONFIRMAR VENTA"):
+            if num and monto > 0:
                 serie = str(uuid.uuid4())[:8].upper()
-                codigo = f"PAY-{random.randint(1000, 9999)}"
+                codigo = f"PIN-{random.randint(1000, 9999)}"
                 nueva_v = {
                     'id_serie': serie, 'codigo_pago': codigo, 'numero': num,
-                    'loteria': loteria, 'monto': valor,
-                    'fecha': fecha_venta.strftime("%Y-%m-%d"),
+                    'loteria': loteria, 'monto': monto,
+                    'fecha': datetime.now().strftime("%Y-%m-%d"),
                     'hora': datetime.now().strftime("%H:%M:%S"), 'estado': 'VIGENTE'
                 }
                 st.session_state.db_ventas = pd.concat([st.session_state.db_ventas, pd.DataFrame([nueva_v])], ignore_index=True)
                 st.session_state.ultimo_ticket = nueva_v
-                st.success("Venta procesada con éxito")
+                st.success("✅ Venta Guardada")
             else:
-                st.error("Error: Verifique el número y el valor.")
+                st.warning("⚠️ Ingrese número y monto válido")
         st.markdown('</div>', unsafe_allow_html=True)
 
-    with col_der:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.subheader("Resumen / Impresión")
-        
+    with col2:
         if 'ultimo_ticket' in st.session_state:
             t = st.session_state.ultimo_ticket
-            # Contenedor para el Ticket (POS80)
             ticket_ui = f"""
-            <div id="ticket-area" style="width: 75mm; padding: 10px; border: 1px dashed #000; background: white; color: black; font-family: monospace;">
+            <div id="ticket-area" style="width: 75mm; padding: 10px; border: 1px solid #000; background: white; color: black; font-family: monospace;">
                 <center>
-                    <img src="http://52.201.2.30/apt3/assets/img/logo3.png" style="width: 100px;"><br>
-                    <strong>TICKET DE VENTA</strong><br>
-                    <h1 style="margin: 5px 0; font-size: 50px;">{t['numero']}</h1>
-                    <p style="font-size: 20px;">VALOR: ${t['monto']}</p>
+                    <h2 style="margin:0;">SISTEMA LOCAL</h2>
+                    <hr>
+                    <span style="font-size:14px;">NÚMERO JUGADO</span><br>
+                    <span style="font-size:50px; font-weight:bold;">{t['numero']}</span><br>
+                    <span style="font-size:22px;">$ {t['monto']}</span>
                     <hr>
                     <div style="text-align: left; font-size: 11px;">
                         FECHA: {t['fecha']} {t['hora']}<br>
                         SERIE: {t['id_serie']}<br>
-                        PIN PAGO: {t['codigo_pago']}<br>
+                        COD. PAGO: {t['codigo_pago']}<br>
                         LOTERIA: {t['loteria']}
                     </div>
                     <hr>
-                    <table style="width:100%; font-size: 10px;">
-                        <tr><td>1er Premio</td><td>$500</td></tr>
-                        <tr><td>2do Premio</td><td>$200</td></tr>
-                    </table>
-                    <p style="font-size: 9px; margin-top:10px;">Válido por 7 días.</p>
+                    <p style="font-size: 9px;">Válido 7 días. Conserve el ticket.</p>
                 </center>
             </div>
             """
             st.markdown(ticket_ui, unsafe_allow_html=True)
             
-            # Script de impresión
-            if st.button("🖨️ IMPRIMIR TICKET"):
+            if st.button("🖨️ IMPRIMIR TICKET (POS-80)"):
                 js_print = """
                 <script>
                 var content = window.parent.document.getElementById('ticket-area').innerHTML;
@@ -129,32 +122,41 @@ if menu == "🛒 Vender":
                 </script>
                 """
                 components.html(js_print, height=0)
-        else:
-            st.info("Esperando venta para generar ticket...")
-        st.markdown('</div>', unsafe_allow_html=True)
 
-elif menu == "⏳ Caducados":
-    st.subheader("Tickets Caducados (7 días)")
-    df = st.session_state.db_ventas.copy()
-    # Lógica de cálculo
-    df['fecha_dt'] = pd.to_datetime(df['fecha'])
-    df['dias_pasados'] = (datetime.now() - df['fecha_dt']).dt.days
-    caducados = df[df['dias_pasados'] > 7]
-    st.dataframe(caducados, use_container_width=True)
+elif menu == "📋 Reporte Ventas":
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.dataframe(st.session_state.db_ventas, use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
 elif menu == "🏆 Pago de Premios":
-    st.subheader("Validación y Pago")
+    st.markdown('<div class="card">', unsafe_allow_html=True)
     c1, c2 = st.columns(2)
-    s_id = c1.text_input("Número de Serie")
-    p_id = c2.text_input("PIN de Pago")
-    if st.button("Validar Pago"):
-        # Buscar en la base
-        res = st.session_state.db_ventas[(st.session_state.db_ventas['id_serie'] == s_id) & (st.session_state.db_ventas['codigo_pago'] == p_id)]
+    s_id = c1.text_input("Serie del Ticket")
+    p_id = c2.text_input("Código de Pago")
+    
+    if st.button("VERIFICAR TICKET GANADOR"):
+        df = st.session_state.db_ventas
+        res = df[(df['id_serie'] == s_id) & (df['codigo_pago'] == p_id)]
         if not res.empty:
-            st.success(f"Ticket validado para el número: {res.iloc[0]['numero']}. Monto a pagar: $XXX")
+            vigencia = verificar_vigencia(res.iloc[0]['fecha'])
+            if vigencia == "VIGENTE":
+                st.success(f"✅ TICKET VÁLIDO. Número: {res.iloc[0]['numero']} | Premio listo para pagar.")
+            else:
+                st.error("❌ TICKET CADUCADO. Excedió los 7 días de vigencia.")
         else:
-            st.error("Ticket no encontrado o datos incorrectos.")
+            st.error("Ticket no encontrado en la base local.")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-elif menu == "📊 Reportes":
-    st.subheader("Mis Reportes de Venta")
-    st.dataframe(st.session_state.db_ventas, use_container_width=True)
+elif menu == "⏳ Caducados":
+    df = st.session_state.db_ventas.copy()
+    if not df.empty:
+        df['vigencia'] = df['fecha'].apply(verificar_vigencia)
+        caducados = df[df['vigencia'] == "CADUCADO"]
+        st.warning(f"Se han encontrado {len(caducados)} tickets fuera de tiempo.")
+        st.dataframe(caducados)
+    else:
+        st.info("No hay registros de ventas.")
+
+elif menu == "⚙️ Configuración":
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.session_state.config_sorteo['
